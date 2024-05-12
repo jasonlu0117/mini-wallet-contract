@@ -1,4 +1,12 @@
-/** @type import('hardhat/config').HardhatUserConfig */
+require("@nomiclabs/hardhat-etherscan");
+require('hardhat-contract-sizer');
+require("@nomicfoundation/hardhat-toolbox");
+
 module.exports = {
-  solidity: "0.8.24",
+  solidity: "0.8.9",
+  networks: {
+    hardhat: {
+      allowUnlimitedContractSize: true
+    }
+  }
 };
