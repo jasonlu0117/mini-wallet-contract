@@ -17,7 +17,7 @@ async function main() {
     console.log("The user address:", user.address);
     console.log("The user2 address:", user2.address);
 
-    var miniWalletAddress = "0x663C578EAEd13D5809D72dEb9E9211D709F19DD8";
+    var miniWalletAddress = "0xf14d9896ED99896ffc1d342592DC48a25c308d50";
     var usdtAddress = "0xEac57585d04f01E055504eE0580e204a0ed68cc1";
     var mintAmount = 10000;
     var depositAmount = 100;
@@ -71,7 +71,7 @@ async function main() {
     }
 
     async function approveERC20TokenAllowance(account, mintAmount) {
-        console.log("Start mint erc20 token...");
+        console.log("Start approve erc20 token...");
         var transaction = await usdt.connect(account).approve(miniWalletAddress, mintAmount);
         console.log("transactionId: ", transaction.hash);
     }

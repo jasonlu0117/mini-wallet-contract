@@ -13,10 +13,10 @@ async function main() {
     console.log("The user2 address:", user2.address);
     
     // await deployMiniWalletImplementation();
-    var miniWalletImplementationAddress = "0x8A6AE815Fc93543c3E0D952180c01cDa4B463DAf";
+    // var miniWalletImplementationAddress = "0x0fBF6052408DD44a4eFD5Be45eB357C1583A8432";
     
-    await deployMiniWallet(miniWalletImplementationAddress);
-    // var miniWalletAddress = "0x663C578EAEd13D5809D72dEb9E9211D709F19DD8";
+    // await deployMiniWallet(miniWalletImplementationAddress);
+    // var miniWalletAddress = "0xf14d9896ED99896ffc1d342592DC48a25c308d50";
 
     // await deployMockUSDT();
     // var usdtAddress = "0xEac57585d04f01E055504eE0580e204a0ed68cc1";
