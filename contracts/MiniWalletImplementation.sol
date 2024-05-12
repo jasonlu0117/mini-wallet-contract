@@ -19,6 +19,8 @@ contract MiniWalletImplementation is ProxyStorage {
     // price feeds aggregator
     mapping(address => AggregatorV3Interface) public priceFeedMap;
 
+    // uniswap interface
+    IUniswapV2Router02 internal uniswapRouter;
     // tokenAddresses set
     EnumerableSet.AddressSet internal tokenAddresses;
 
@@ -28,10 +30,14 @@ contract MiniWalletImplementation is ProxyStorage {
 
     /**
      * The initialization method is called only once during deployment
+     * @param _uniswap the address of uniswap
      */
-    function initialize() external onlyOwner {
+    function initialize(
+        address _uniswap
+    ) external onlyOwner {
         require(manager == address(0), "Already initialized");
         manager = msg.sender;
+        uniswapRouter = IUniswapV2Router02(_uniswap);
     }
 
     /**
@@ -125,6 +131,42 @@ contract MiniWalletImplementation is ProxyStorage {
 
     function setPriceFeed(address token, address priceFeed) external onlyManager {
         priceFeedMap[token] = AggregatorV3Interface(priceFeed);
+    }
+    
+    function swapTokenForTokenWithUniswap(address tokenInAddress, uint256 tokenInAmount, address tokenOutAddress, uint256 tokenOutAmount) public payable onlyUsers returns (uint256 outAmount) {
+        IERC20 fromToken = IERC20(tokenInAddress);
+        fromToken.transferFrom(msg.sender, address(this), tokenInAmount);
+        fromToken.approve(address(uniswapRouter), tokenInAmount);
+
+        address[] memory path;
+        path = new address[](2);
+        path[0] = tokenInAddress;
+        path[1] = tokenOutAddress;
+
+        uint[] memory amounts = uniswapRouter.swapExactTokensForTokens(
+            tokenInAmount,
+            tokenOutAmount,
+            path,
+            msg.sender,
+            block.timestamp
+        );
+        // amounts[0] is inAmount, amounts[1] is outAmount
+        return amounts[1];
+    }
+    
+    function remit(address target, address token, uint256 amount) external payable onlyUsers {
+        // balance needs to be greater than the remit amount
+        require(accountBalances[msg.sender][token] >= amount, "Insufficient balance");
+
+        if (token == address(0)) {
+            // ETH token remit
+            accountBalances[msg.sender][address(0)] -= amount;
+            accountBalances[target][address(0)] += amount;
+        } else {
+            // ERC20 token remit
+            accountBalances[msg.sender][token] -= amount;
+            accountBalances[target][token] += amount;
+        }
     }
     
 }

@@ -3,8 +3,11 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const BigNumber = require("bignumber.js");
 
+// address of uniswap on sepolia
+const uniswap = "0xC532a74256D3Db42D0Bf7a0400fEFDbad7694008";
 // address of mock price feed
 const ethUSDPriceFeed = "0x694AA1769357215DE4FAC081bf1f309aDC325306"
+
 
 describe("MiniWallet", function () {
 
@@ -20,7 +23,7 @@ describe("MiniWallet", function () {
         // deploy miniWalletImplementation contract
         const miniWalletImplementation = await MiniWalletImplementation.deploy();
         // deploy miniWallet contract with miniWalletImplementation.address
-        const miniWalletProxy = await MiniWallet.deploy(miniWalletImplementation.address);
+        const miniWalletProxy = await MiniWallet.deploy(miniWalletImplementation.address, uniswap);
         const miniWallet = MiniWalletImplementation.attach(miniWalletProxy.address);
         return { manager, user, user2, miniWallet, miniWalletProxy };
     }
@@ -185,7 +188,87 @@ describe("MiniWallet", function () {
                 await expect(miniWallet.connect(user).getUSDValue()).to.be.revertedWithoutReason();
             })
         });
+
+        describe("Remit test", function () {
+            it("Should revert in the following cases when user remit", async function () {
+                const { miniWallet, manager, user, user2 } = await loadFixture(deployMiniWalletFixture);
+                const { usdt } = await deployTokensFixture()
+
+                const mintAmount = 10000;
+                const depositAmount = 100;
+                const withdrawAmount = 1000;
+
+                // calling withdraw by the manager will result in an exception
+                error = "Manager is not able to deposit and withdraw";
+                await expect(miniWallet.connect(manager).remit(user2.address, ethers.constants.AddressZero, depositAmount)).to.be.revertedWith(error);
+
+                // calling withdraw with an amount greater than the balance will result in an exception
+                error = "Insufficient balance";
+                await usdt.mint(user.address, mintAmount);
+                await usdt.connect(user).approve(miniWallet.address, mintAmount);
+                await miniWallet.connect(user).deposit(usdt.address, depositAmount)
+
+                await expect(miniWallet.connect(user).remit(user2.address, usdt.address, withdrawAmount)).to.be.revertedWith(error);
+                await expect(miniWallet.connect(user).remit(user2.address, ethers.constants.AddressZero, withdrawAmount)).to.be.revertedWith(error);
+            });
+
+            it("Should remit ETH token successfully when user remit with valid amount", async function () {
+                const { miniWallet, user, user2 } = await loadFixture(deployMiniWalletFixture);
+
+                const depositAmount = 100;
+                const remitAmount = 10;
+                const withdrawAmount = 5;
+
+                // user deposits 100 eth tokens
+                await miniWallet.connect(user).deposit(ethers.constants.AddressZero,  depositAmount, { value: depositAmount });
+                // user balance should be 100 eth tokens
+                var ethBalanceBeforeRemit = await miniWallet.connect(user).accountBalances(user.address, ethers.constants.AddressZero);
+                expect(ethBalanceBeforeRemit).to.equal(depositAmount)
+
+                // user remit 10 eth tokens to user2
+                await miniWallet.connect(user).remit(user2.address, ethers.constants.AddressZero,  remitAmount, { value: remitAmount });
+                // user2 balance should be 10 eth tokens
+                var ethBalanceAfterRemit = await miniWallet.connect(user2).accountBalances(user2.address, ethers.constants.AddressZero);
+                expect(ethBalanceAfterRemit).to.equal(remitAmount)
+
+                // user2 withdraw 5 eth tokens
+                await miniWallet.connect(user2).withdraw(ethers.constants.AddressZero,  withdrawAmount);
+                // user2 balance should be 10 - 5 eth tokens
+                var ethBalanceAfterWithdraw = await miniWallet.connect(user2).accountBalances(user2.address, ethers.constants.AddressZero);
+                expect(ethBalanceAfterWithdraw).to.equal(ethBalanceAfterRemit - withdrawAmount)
+            })
+
+            it("Should remit USDT(ERC20) token successfully when user remit with valid amount", async function () {
+                const { miniWallet, user, user2 } = await loadFixture(deployMiniWalletFixture);
+                const { usdt } = await deployTokensFixture()
+
+                const mintAmount = 100;
+                const depositAmount = 100;
+                const remitAmount = 10;
+                const withdrawAmount = 5;
+
+                // mint 100 tokens for the user and call approve
+                await usdt.mint(user.address, mintAmount);
+                await usdt.connect(user).approve(miniWallet.address, mintAmount);
+                // user deposits 100 tokens
+                await miniWallet.connect(user).deposit(usdt.address,  depositAmount);
+                // user balance should be 100 tokens
+                var ethBalanceBeforeRemit = await miniWallet.connect(user).accountBalances(user.address, usdt.address);
+                expect(ethBalanceBeforeRemit).to.equal(depositAmount)
+
+                // user remit 10 tokens to user2
+                await miniWallet.connect(user).remit(user2.address, usdt.address,  remitAmount, { value: remitAmount });
+                // user2 balance should be 10 tokens
+                var ethBalanceAfterRemit = await miniWallet.connect(user2).accountBalances(user2.address, usdt.address);
+                expect(ethBalanceAfterRemit).to.equal(remitAmount)
+
+                // user2 withdraw 5 tokens
+                await miniWallet.connect(user2).withdraw(usdt.address,  withdrawAmount);
+                // user2 balance should be 10 - 5 tokens
+                var ethBalanceAfterWithdraw = await miniWallet.connect(user2).accountBalances(user2.address, usdt.address);
+                expect(ethBalanceAfterWithdraw).to.equal(ethBalanceAfterRemit - withdrawAmount)
+            })
+        });
     });
 
 });
-

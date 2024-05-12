@@ -4,12 +4,14 @@ pragma solidity 0.8.9;
 
 contract MiniWallet is Proxy {
     constructor(
-        address _implementation
+        address _implementation,
+        address _uniswap
     ) Proxy(_implementation) {
         delegateTo(
             _implementation,
             abi.encodeWithSignature(
-                "initialize()"
+                "initialize(address)",
+                _uniswap
             )
         );
     }
