@@ -37,6 +37,27 @@ describe("MiniWallet", function () {
         return { usdt };
     }
 
+    /**
+     * deploy miniWalletImplementation2 and update miniWallet contract implementation, return the contract instances.
+     * @returns 
+     */
+    async function deployAndUpdateMiniWalletFixture() {
+        const [ manager, user, user2 ] = await ethers.getSigners();
+        const MiniWallet = await ethers.getContractFactory("MiniWallet");
+        const MiniWalletImplementation = await ethers.getContractFactory("MiniWalletImplementation");
+
+        // deploy miniWalletImplementation contract
+        const miniWalletImplementation = await MiniWalletImplementation.deploy();
+        // deploy miniWallet contract with miniWalletImplementation.address
+        const miniWalletProxy = await MiniWallet.deploy(miniWalletImplementation.address, uniswap);
+
+        const MiniWalletImplementationV2 = await ethers.getContractFactory("MiniWalletImplementationV2");
+        const miniWalletImplementationV2 = await MiniWalletImplementationV2.deploy();
+        await miniWalletProxy.updateImplementation(miniWalletImplementationV2.address);
+        const miniWallet = MiniWalletImplementationV2.attach(miniWalletProxy.address);
+        return { manager, user, user2, miniWallet, miniWalletProxy };
+    }
+
 
     /**
      * unit tests of deploy
@@ -46,6 +67,24 @@ describe("MiniWallet", function () {
             it("Should the manager address in the contract match the deployer address", async function () {
                 const { miniWallet, manager } = await loadFixture(deployMiniWalletFixture);
                 expect(await miniWallet.manager()).to.equal(manager.address);
+            });
+        })
+
+        describe("Update implementation contract test", function () {
+            it("Should revert when update implementation with a invalid address", async function () {
+                const { manager, miniWalletProxy } = await loadFixture(deployMiniWalletFixture);
+                const error = 'Destination address is not a contract'
+                await expect(miniWalletProxy.updateImplementation(manager.address))
+                    .to.be.revertedWith(error);
+            });
+
+            it("Should update successfully when update implementation with a valid contract", async function () {
+                const { miniWalletProxy } = await loadFixture(deployMiniWalletFixture);
+                const MiniWalletImplementationV2 = await ethers.getContractFactory("MiniWalletImplementationV2");
+                const miniWalletImplementationV2 = await MiniWalletImplementationV2.deploy();
+                await miniWalletProxy.updateImplementation(miniWalletImplementationV2.address);
+                var implementation = await miniWalletProxy.implementation();
+                expect(implementation).to.equal(miniWalletImplementationV2.address);
             });
         })
     });
@@ -267,6 +306,35 @@ describe("MiniWallet", function () {
                 // user2 balance should be 10 - 5 tokens
                 var ethBalanceAfterWithdraw = await miniWallet.connect(user2).accountBalances(user2.address, usdt.address);
                 expect(ethBalanceAfterWithdraw).to.equal(ethBalanceAfterRemit - withdrawAmount)
+            })
+        });
+
+        describe("Get all token balances test", function () {
+            it("Should get all token balances successfully", async function () {
+                const { miniWallet, user } = await loadFixture(deployAndUpdateMiniWalletFixture);
+                const { usdt } = await deployTokensFixture()
+
+                const mintAmount = 10000;
+                const ethDepositAmount = 100;
+                const erc20DepositAmount = 200;
+
+                // user deposits 100 eth tokens
+                await miniWallet.connect(user).deposit(ethers.constants.AddressZero,  ethDepositAmount, { value: ethDepositAmount });
+                // user deposits 100 erc20 tokens
+                await usdt.mint(user.address, mintAmount);
+                await usdt.connect(user).approve(miniWallet.address, mintAmount);
+                await miniWallet.connect(user).deposit(usdt.address, erc20DepositAmount)
+
+                let expectedTokenBalanceMap = new Map();
+                expectedTokenBalanceMap.set(ethers.constants.AddressZero, ethDepositAmount);
+                expectedTokenBalanceMap.set(usdt.address, erc20DepositAmount);
+                var tokenBalances = await miniWallet.connect(user).getAllTokenBalances();
+                for (let i = 0; i < tokenBalances.length; i++) {
+                    let token = tokenBalances[i].token;
+                    let balance = tokenBalances[i].balance;
+                    expect(expectedTokenBalanceMap.has(token)).to.equals(true);
+                    expect(expectedTokenBalanceMap.get(token)).to.equals(balance);
+                }
             })
         });
     });
