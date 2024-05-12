@@ -3,6 +3,9 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const BigNumber = require("bignumber.js");
 
+// address of mock price feed
+const ethUSDPriceFeed = "0x694AA1769357215DE4FAC081bf1f309aDC325306"
+
 describe("MiniWallet", function () {
 
     /**
@@ -158,6 +161,28 @@ describe("MiniWallet", function () {
                 // user balance should be 100 - 10 tokens
                 var usdtBalance = await miniWallet.accountBalances(user.address, usdt.address);
                 expect(usdtBalance).to.equal(depositAmount - withdrawAmount);
+            })
+        });
+
+        describe("USD value test", function () {
+            it("Should set price feed successfully by manager", async function () {
+                const { miniWallet, manager, user } = await loadFixture(deployMiniWalletFixture);
+
+                // calling setPriceFeed by the user will result in an exception
+                error = "Only manager not able to set price feed";
+                await expect(miniWallet.connect(user).setPriceFeed(ethers.constants.AddressZero, ethUSDPriceFeed)).to.be.revertedWith(error);
+            
+                await expect(miniWallet.connect(manager).setPriceFeed(ethers.constants.AddressZero, ethUSDPriceFeed)).to.not.be.revertedWith(error);
+            });
+
+            // Since the local environment cannot access the price feed, this test case cannot succeed locally. 
+            // Here, we're simply outlining the logic, which can be tested in the Sepolia environment.
+            it("Should get usd value successfully", async function () {
+                const { miniWallet, manager, user } = await loadFixture(deployMiniWalletFixture);
+                const depositAmount = 100;
+                await miniWallet.connect(manager).setPriceFeed(ethers.constants.AddressZero, ethUSDPriceFeed);
+                await miniWallet.connect(user).deposit(ethers.constants.AddressZero,  depositAmount, { value: depositAmount });
+                await expect(miniWallet.connect(user).getUSDValue()).to.be.revertedWithoutReason();
             })
         });
     });

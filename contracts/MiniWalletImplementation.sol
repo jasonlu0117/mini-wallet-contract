@@ -16,6 +16,8 @@ contract MiniWalletImplementation is ProxyStorage {
 
     // stores balances of different tokens for different users
     mapping(address => mapping(address => uint256)) public accountBalances;
+    // price feeds aggregator
+    mapping(address => AggregatorV3Interface) public priceFeedMap;
 
     // tokenAddresses set
     EnumerableSet.AddressSet internal tokenAddresses;
@@ -89,6 +91,40 @@ contract MiniWalletImplementation is ProxyStorage {
             IERC20(token).safeTransfer(msg.sender, amount);
             accountBalances[msg.sender][token] -= amount;
         }
+    }
+
+    function getUSDValue() external view returns (uint256) {
+        uint256 totalUSDValue = 0;
+        for (uint256 i = 0; i < tokenAddresses.length(); i++) {
+            // get the balance of the corresponding token
+            uint256 tokenBalance = accountBalances[msg.sender][tokenAddresses.at(i)];
+            // get the price of the corresponding token
+            // no need to calculate value if the balance is 0
+            if (tokenBalance > 0) {
+                // get the price of the corresponding token
+                (uint256 tokenPrice, uint8 decimals) = getLatestPrice(tokenAddresses.at(i));
+                // calculate the usd value for the token
+                // returned result needs to be divided by the token's decimal places (default to 18 for ERC20) to obtain the value x in USD
+                totalUSDValue += tokenBalance * tokenPrice / 10**decimals;
+            }
+        }
+        return totalUSDValue;
+    }
+
+    function getLatestPrice(address token) public view returns (uint, uint8) {
+        (
+            uint80 roundID, 
+            int price,
+            uint startedAt,
+            uint timeStamp,
+            uint80 answeredInRound
+        ) = priceFeedMap[token].latestRoundData();
+        uint8 decimals = priceFeedMap[token].decimals();
+        return (uint(price), decimals);
+    }
+
+    function setPriceFeed(address token, address priceFeed) external onlyManager {
+        priceFeedMap[token] = AggregatorV3Interface(priceFeed);
     }
     
 }
